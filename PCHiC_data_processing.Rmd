@@ -1,0 +1,166 @@
+---
+title: "Unit 4 Lesson 2 PCHiC data processing"
+author: "Csilla Varnai"
+date: "2022-08-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list=ls())
+library(dplyr)
+# in terminal run : get-data bioinf-dl_m6-u4
+```
+
+You will be working with chromatin interactions in primary blood cells, identified by Javierre et al. This is the file that was released with the publication. In this exercise, we will study the dataset to identify if chromatin interactions are cell type specific.
+
+## 1. Input files and data processing
+
+### Read and inspect the chromatin interaction data
+
+First, let us read the input data, and interpret what is stored in each column. The columns of the file contain the following information:
+
+-   **baitChr**, **baitStart**, **baitEnd**: the promoter containing fragment's genomic coordinates,
+-   **baitID**: the promoter containing fragment's unique ID,
+-   **baitName**: the names of promoters overlapping the restriction fragment,
+-   **oeChr**, **oeStart**, **oeEnd**: the genomic coordinates of the other end of the interaction,
+-   **oeID**: the unique ID of the other end
+-   **oeName**: the names of promoters overlapping the other end,
+-   **dist**: the genomic distance between the promoter containing fragment and the other end
+-   **Mon**, **Mac0**, **Mac1**, **Mac2**, **Neu**, **MK**, **EP**, **Ery**, **FoeT**, **nCD4**, **tCD4**, **aCD4**, **naCD4**, **nCD8**, **tCD4**, **nB**, **tB**: interaction scores for the cell types as identified by the CHiCAGO software package.
+-   **clusterID**, **clusterPostProb**: cluster ID and posterior probability from the clustering in Javierre et al. (2016), you will not need these for the assignment.
+
+```{r}
+# NOTE: If you have not yet downloaded the data for this practical, please do so now. 
+# To do this, open a terminal by sececting Tools -> Terminal -> New Terminal from the menu above, and run the line:
+# get-data bioinf-dl_m6-u4
+
+interactions = as.data.frame(read.table("/data/bioinf-dl_m6-u4/Lesson2_PCHiC_data/PCHiC_peak_matrix_cutoff5.txt", header = TRUE))
+head(interactions)
+```
+
+Let us also count the total number of interactions in the dataset.
+
+```{r}
+nrow(interactions)
+```
+
+### Identify the number of significant interactions
+
+How would you identify the number of significant interactions for Monocytes (Mon), M0 Macrophages (Mac0), naive CD4+ T cells (nCD4) and naive CD8+ T cells (nCD8).
+
+The number of significant interactions for Monocytes:
+
+```{r}
+# write code here
+nrow(interactions[interactions$Mon >= 5, ])
+```
+
+Do the same for M0 Macrophages, naive CD4+ T cells and naive CD8+ T cells.
+
+```{r}
+# write code here
+nrow(interactions[interactions$Mac0 >= 5, ])
+nrow(interactions[interactions$nCD4 >= 5, ])
+nrow(interactions[interactions$nCD8 >= 5, ])
+```
+
+### Extract the significant interactions for the Monocytes (Mon), M0 Macrophages (Mac0), naïve CD4+ T cells (nCD4) and naïve CD8+ T cells (nCD8)
+
+Open the data wrangling cheatsheet, and find the function that can be used to extract the interactions (rows) that have an interaction score of \>= 5 in Monocytes. Use the function, and save the filtered data in a data.frame named **Mon_interactions**.
+
+```{r}
+# write code here
+Mon_interactions <- interactions[interactions$Mon >= 5, ]
+# take a look if it has worked
+head(Mon_interactions)
+```
+
+Do the same for Macrophages (Mac0), naive CD4+ T cells (nCD4) and naive CD8+ T cells (nCD8).
+
+```{r}
+# write code here
+Mac0_interactions <- interactions[interactions$Mac0 >= 5, ]
+nCD4_interactions <- interactions[interactions$nCD4 >= 5, ]
+nCD8_interactions <- interactions[interactions$nCD8 >= 5, ]
+```
+
+### Convert the data to the BEDPE file format
+
+Using the data wrangling cheatsheet, find the function that can be used to extract the columns that are necessary for the BEDPE format and save it in a data.frame named **Mon_interactions_bedpe**.
+
+```{r}
+Mon_interactions_bedpe = Mon_interactions[, c("baitChr", "baitStart","baitEnd","oeChr","oeStart","oeEnd","baitName","Mon","oeName")]
+
+head(Mon_interactions_bedpe)
+
+```
+
+Do the same for Macrophages (Mac0), naive CD4+ T cells (nCD4) and naive CD8+ T cells (nCD8).
+
+```{r}
+# write code here
+Mon_interactions_bedpe = Mon_interactions[, c("baitChr", "baitStart","baitEnd","oeChr","oeStart","oeEnd","baitID","Mon")]
+Mac0_interactions_bedpe = Mac0_interactions[, c("baitChr", "baitStart","baitEnd","oeChr","oeStart","oeEnd","baitID","Mac0")]
+nCD4_interactions_bedpe = nCD4_interactions[, c("baitChr", "baitStart","baitEnd","oeChr","oeStart","oeEnd","baitID","nCD4")]
+nCD8_interactions_bedpe = nCD8_interactions[, c("baitChr", "baitStart","baitEnd","oeChr","oeStart","oeEnd","baitID","nCD8")]
+```
+
+### Write data to file
+
+Using the **write.table()** function, write the Monocyte interactions in BEDPE format into a file named **Mon.bedpe**. Look up the help page for the function, to identify the arguments you need to use. For IGV to read the files, you will have to
+
+-   set the separator to the Tab character,
+-   not to use quotes around the printed fields,
+-   not write row names and
+-   not write column names.
+
+```{r}
+?write.table()
+```
+
+```{r}
+write.table(Mon_interactions_bedpe, file = "Mon_in.bedpe",col.names = FALSE, sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+Do the same for Macrophages (Mac0), naive CD4+ T cells (nCD4) and naive CD8+ T cells (nCD8). Your output files should be **Mac0.bedpe**, **nCD4.bedpe** and **nCD8.bedpe**.
+
+```{r}
+# write code here
+write.table(Mac0_interactions_bedpe, file = "Mac0.bedpe",col.names = FALSE, sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(nCD4_interactions_bedpe, file = "nCD4.bedpe",col.names = FALSE, sep = "\t", row.names = FALSE, quote = FALSE)
+write.table(nCD8_interactions_bedpe, file = "nCD8.bedpe",col.names = FALSE, sep = "\t", row.names = FALSE, quote = FALSE)
+```
+
+### Now return to the task instructions to see your next task.
+
+## 2. Clustering contact data
+
+We will cluster the cell types, using the pairwise similarities of their interaction scores for all interactions called genome-wide by Javierre et al. First, we need to calculate the similarity matrix containing pairwise similarities of the celltypes, using the dist() function. The input of this function is a matrix containing the interaction scores for the cell types (columns 12 to 28).
+
+```{r}
+# read the interactions again if you have restarted your RStudio session.
+# interactions = as.data.frame(read.table("PCHiC_peak_matrix_cutoff5.txt", header = TRUE))
+pairwise_similarity_matrix <- dist(t(interactions[,12:28]))
+```
+
+We will perform hierarchical clustering on the interaction scores, using the hclust() function. Look at the help page of the hclust() function, to see what it does and what its input parameters are. Briefly, hclust() groups together similar objects, and the more similar they are, the closer they appear in the output cluster tree named dendrogram. Feel free to play with the parameters, to see how the results change.
+
+```{r}
+hc <- hclust(pairwise_similarity_matrix, method = "complete")
+```
+
+Finally, let's plot the dendrogram (cluster tree) using the plot() function. Celltypes that have more similar interaction score profiles appear closer in the tree.
+
+```{r}
+plot(hc, main = "Primary blood cells")
+```
+
+Let's save this plot.
+
+```{r}
+pdf("dendrogram.pdf", width = 8, height = 6)
+plot(hc, main = "Primary blood cells")
+dev.off()
+```
+
+### Now return to the task instructions to see your next task.
