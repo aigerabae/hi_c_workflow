@@ -1,0 +1,191 @@
+---
+title: "Unit 4 Lesson 2 PCHiC integration with epigenomics"
+author: "Csilla Varnai"
+date: "2022-08-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(gplots)
+```
+
+You will be working with processed chromatin contact and epigenomics data for Macrophages by Javierre et al. In this activity, you will identify if active promoters are enriched in interactions with active enhancers, where chromatin activity is determined using the epigenomics data.
+
+## 1. Input files and data processing
+
+First, let us read the input data, and interpret what is stored in each column. The columns of the file contain the following information:
+
+-   **BaitID**, **BaitChr**, **BaitStart**, **BaitEnd**: the ID and genomic coordinates of the promoter containing fragment,
+-   **OtherEndID**, **OtherEndChr**, **OtherEndStart**, **OtherEndEnd**: the ID and genomic coordinates of the promoter interacting "other end" region,
+-   **DonorID**, **CellType**: the ID of the sample donor and the cell type for which the interaction and chromatin information is listed,
+-   **SignifInteraction**: 1 if the interaction is significant (interaction score \>= 5) and 0 if not,
+-   **BaitRegFeatIDs**, **BaitRegFeatActivity**: the names and IDs of the Regulatory Build features mapping to the promoter fragment, and the cell type specific chromatin activity categories (see below for details),
+-   **OtherEndRegFeatIDs**, **OtherEndRegFeatActivity**: the names and IDs of the Regulatory Build features mapping to the promoter interacting "other end" fragment, and the cell type specific chromatin activity categories (see below for details),
+-   **BaitRegFeatIDs**, **OtherEndRegFeatIDs**: the names and IDs of the Regulatory Build features mapping to the promoter fragment, and the cell type specific chromatin activity categories: or the promoter-interacting fragment ,
+-   **BaitIsActive**: the activity status of the promoter containing fragment: TRUE if the fragment contains at least 1 active transcription start site (regulatory features with **tss\_** in the name) and FALSE otherwise,
+-   **OtherEndIsActive**: the activity status of the promoter interacting fragment: TRUE if the fragment contains at least 1 active enhancer (regulatory features with **proximal\_** or **distal\_** in the name) and FALSE otherwise.
+
+The chromatin activity status for the regulatory features was determined by Javierre et al. using the Chrom-HMM software (). It can take the values:
+
+-   0: dead, no signal,
+-   1: active, open chromatin (ATAC-seq peak) or active marks (active histone modification peak),
+-   2: poised, containing bivalent marks, i.e. both active and repressive chromatin marks,
+-   3: Polycomb-repressed, with a H3K27me3 histone modification mark,
+-   4: NA, cell-type independent regulatory features, e.g. transcription factor binding sites or CTCF bindin sites.
+
+```{r}
+interactions = as.data.frame(read.table("RegBuild_BLUEPRINT_annotations_Mac0_with_fragment_activity_scores.txt", header = TRUE, sep = "\t"))
+head(interactions)
+```
+
+Count the number of significant interactions and save it in a variable **n_total**.
+
+```{r}
+n_total <- nrow(interactions[interactions$SignifInteraction >= 1, ])
+n_total
+```
+
+Count the number and fraction of interactions involving an active promoter containing fragment.
+
+```{r}
+p_BaitActive <- nrow(interactions[interactions$BaitActive == TRUE, ])
+p_BaitActive
+p_BaitActive <- p_BaitActive/n_total
+p_BaitActive
+```
+
+Count the number and fraction of interactions involving an active "other end" fragment.
+
+```{r}
+p_OtherEndActive = nrow(interactions[interactions$OtherEndActive == TRUE, ])
+p_OtherEndActive
+p_OtherEndActive <- p_OtherEndActive/n_total
+p_OtherEndActive
+```
+
+# 2. Enrichment of interactions
+
+We will compute the matrix of interaction enrichment between active/inactive promoters and active/inactive enhancers. The enrichment of interactions is the 2-based logarithm of the ratio of observed and expected number of interactions **(log2(observed/expected))**. Think of an **enrichment matrix** as a small table that says, for every pair of categories, **“do we see this combo more or less often than we’d expect by chance?”**
+
+Let us first initialise the enrichment matrix.
+
+```{r}
+  enrichment_matrix = matrix(data = NA, nrow = 2, ncol = 2)
+  rownames(enrichment_matrix) = c("active_promoter", "inactive_promoter")
+  colnames(enrichment_matrix) = c("active_enhancer", "inactive_enhancer")
+```
+
+Now let us compute the individual elements of the matrix. The observed number of interactions is a simple count. To compute the expected number of interactions, we assume that selecting an active promoter or an active enhancer is independent. Hence, the joint probability is the product of the individual probabilities. We also use the fact that the sum of probabilities of picking an active or an inactive "other end" is 1. As such, the enrichment of interactions between active promoter containing fragments and inactive enhancer containing fragments can be computed using the following command:
+
+```{r}
+enrichment_matrix[1,2] = log2( sum(interactions$BaitActive & !interactions$OtherEndActive) / ( p_BaitActive * (1-p_OtherEndActive) * n_total ) )
+enrichment_matrix
+```
+
+Now compute the other three elements of the enrichment matrix.
+
+```{r}
+# write your code here
+enrichment_matrix[1,1] = log2( sum(interactions$BaitActive & interactions$OtherEndActive) / ( p_BaitActive * p_OtherEndActive * n_total ) )
+enrichment_matrix[2,2] = log2( sum(!interactions$BaitActive & !interactions$OtherEndActive) / ( (1-p_BaitActive) * (1-p_OtherEndActive) * n_total ) )
+enrichment_matrix[2,1] = log2( sum(!interactions$BaitActive & interactions$OtherEndActive) / ( (1-p_BaitActive) * p_OtherEndActive * n_total ) )
+enrichment_matrix
+```
+
+Now let's plot the enrichment matrix, using the **heatmap.2()** function of the **gplots** library. Look up the help page of the **heatmap.2()** function, to interpret the plot command.
+
+```{r}
+?heatmap.2()
+```
+
+Plot the enrichment matrix, with a custom blue-white-red palette centred on 0 which represents no enrichment.
+
+```{r}
+palette3 <- colorRampPalette(c("blue","white","red"),space="rgb")(256)
+heatmap.2(enrichment_matrix,Rowv=NA, Colv=NA,
+          dendrogram = "none", scale='none',trace='none',symkey=T, breaks=seq(-0.5,0.5,length.out=257),col=palette3,
+          sub="", xlab = "promoter", labRow = c("active","inactive"), cexRow = 1,
+          ylab = "enhancer", labCol = c("active","inactive"), cexCol = 1,
+          cellnote = round(enrichment_matrix, 3), notecol = "black", notecex = 2,
+          density.info = "none", key.title = "enrichment", key.xlab = "log2(Obs/Exp)", key.ylab = "")
+```
+
+Save into a file.
+
+```{r}
+pdf("Mac0_enrichment.pdf", width = 7, height = 7)
+palette3 <- colorRampPalette(c("blue","white","red"),space="rgb")(256)
+heatmap.2(enrichment_matrix,Rowv=NA, Colv=NA,
+          dendrogram = "none", scale='none',trace='none',symkey=T, breaks=seq(-0.5,0.5,length.out=257),col=palette3,
+          sub="", xlab = "promoter", labRow = c("active","inactive"), cexRow = 1,
+          ylab = "enhancer", labCol = c("active","inactive"), cexCol = 1,
+          cellnote = round(enrichment_matrix, 2), notecol = "black", notecex = 2,
+          density.info = "none", key.title = "enrichment", key.xlab = "log2(Obs/Exp)", key.ylab = "")
+dev.off()
+```
+
+# 3. Identify the significance level of enrichment
+
+We will now identify the significance levels of enrichment between active promoters and active enhancers.
+
+To do this, we will do a permutation test to determine the expected distribution of the enrichment in a shuffled data. By comparing the observed enrichment to the distribution, and computing what proportion of the expected distribution is higher than the observed enrichment, we get the probability that our enrichment is higher than randomly occurring enrichment scores.
+
+You’re doing a **permutation test** to ask: “Is the enrichment of **active-promoter ↔ active-enhancer** interactions higher than what we’d see by chance if promoter/enhancer states were independent?”
+
+How it works (plain):
+
+-   Compute the **observed enrichment** = `log2( observed / expected )`, where\
+
+    `observed = # of interactions with (BaitActive == TRUE & OtherEndActive == TRUE)` and\
+
+    `expected = n_total * P(BaitActive==TRUE) * P(OtherEndActive==TRUE)`.
+
+    **Shuffle** the active/inactive labels many times (without replacement) to **break real pairing**, recompute the enrichment each time → this gives a **null distribution**.
+
+    The **p-value** is the fraction of shuffled enrichments ≥ the observed one.
+
+```{r}
+em_perm = array(NA, dim = 10000)
+em_perm2 <- array(NA, dim = 10000)
+em_perm3 <- array(NA, dim = 10000)
+for (i in 1:10000) {
+  shuffled_data <- interactions %>% mutate(BaitActive = sample(BaitActive, replace = FALSE)) %>% mutate(OtherEndActive = sample(OtherEndActive, replace = FALSE))
+  em_perm[i] <- log2( sum(shuffled_data$BaitActive & shuffled_data$OtherEndActive) / ( p_BaitActive * p_OtherEndActive * n_total ) )# write code here
+  em_perm2[i] <- log2( sum(!shuffled_data$BaitActive & !shuffled_data$OtherEndActive) / ( (1-p_BaitActive) * (1-p_OtherEndActive) * n_total ) )# write code here
+  em_perm3[i] <- log2( sum(shuffled_data$BaitActive & shuffled_data$OtherEndActive) / ( p_BaitActive * (1-p_OtherEndActive) * n_total ) )# write code here
+}
+```
+
+Now use the **hist()** function to plot the distribution of the enrichments in the shuffled data, with the P=0.05 significance level marked.
+
+```{r}
+hist(em_perm, breaks = 50, xlab = "enrichment", main = "Permutation test, P=0.05 threshold in red")
+abline(v = quantile(em_perm, probs = 0.95), col = 'red', lwd = 2)
+hist(em_perm2, breaks = 50, xlab = "enrichment", main = "Permutation test, P=0.05 threshold in red")
+abline(v = quantile(em_perm, probs = 0.95), col = 'red', lwd = 2)
+hist(em_perm3, breaks = 50, xlab = "enrichment", main = "Permutation test, P=0.05 threshold in red")
+abline(v = quantile(em_perm, probs = 0.95), col = 'red', lwd = 2)
+```
+
+Identify is the observed enrichment is significant using a P=0.05 significance threshold.
+
+```{r}
+# write your code here
+#2*mean(res>=obs)  
+sum(em_perm >= enrichment_matrix[1,1])
+max(em_perm)
+enrichment_matrix[1,1]
+
+sum(em_perm2 >= enrichment_matrix[2,2])
+max(em_perm2)
+enrichment_matrix[2,2]
+
+sum(em_perm3 >= enrichment_matrix[1,2])
+max(em_perm3)
+enrichment_matrix[1,2]
+
+```
+
+which.max(em_perm)
