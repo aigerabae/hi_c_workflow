@@ -7,3 +7,4 @@ The data are then integrated with CHiP-seq and ATAC-seq-data epigenomics data. T
 They have further processed the data and derived single activity status calls for each promoter containing fragment or their interacting “other end” fragments. Normally, it would be your job to do this as a bioinformatician, but as it is a time-consuming process, they have done it for you and this is not part of the assignment. Nevertheless, we encourage you to think about strategies for how to do this step. In this analysis, you will perform a statistical analysis of these data using RStudio, to address the following question:  
 
 - Are chromatin contacts enriched at gene regulatory features/chromatin marks?  
+PCHiC_epigenomics_integration.Rmd file contains that analysis; it tests association between promoters and enhancers activation status
