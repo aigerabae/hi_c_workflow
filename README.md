@@ -8,3 +8,4 @@ They have further processed the data and derived single activity status calls fo
 
 - Are chromatin contacts enriched at gene regulatory features/chromatin marks?  
 PCHiC_epigenomics_integration.Rmd file contains that analysis; it tests association between promoters and enhancers activation status
+Note that in the last testing, the way we set up expected and observed values makes it impractical to run 4 tests; it would make more sense to run a test that would test the entire 2x2 table against expected values (because one is low, the other would be proportionally higher, etc)
